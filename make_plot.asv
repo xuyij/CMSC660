@@ -1,7 +1,0 @@
-function make_plot()
-
-error_CG=random_walk_in_maze();
-error_precond_CG=precond_random_walk_in_maze();
-plot(1:size(error_CG),1:size(error_CG));
-xlabel('it')
-end
