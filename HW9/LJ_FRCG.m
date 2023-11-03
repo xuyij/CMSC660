@@ -1,8 +1,8 @@
-function LJ_FRCG()
+function [iter,fvals,ngvals]=LJ_FRCG(xyz,dire)
 fsz = 20; % fontsize
 Na = 7; % the number of atoms
 rstar = 2^(1/6); % argument of the minimum of the Lennard-Jones pair potential V(r) = r^(-12) - r^(-6)
-tol = 1e-9; % stop iterations when || grad f|| < tol
+tol = 1e-6; % stop iterations when || grad f|| < tol
 iter_max = 500; % the maximal number of iterations
 draw_flag = 1; % if draw_flag = 1, draw configuration at every iteration
 % parameters for backtracking line search
@@ -21,11 +21,11 @@ rho = 0.9;
 % Models 1--4 set the system up close to the corresponding local minima
 % listed above.
 
-model = 1;
-if model > 0
-    Na = 7;
-end
-xyz = initial_configuration(model,Na,rstar);
+%model = init_config;
+%if model > 0
+    %Na = 7;
+%end
+%xyz = initial_configuration(model,Na,rstar);
 drawconf(xyz,1);
 
 x = remove_rotations_translations(xyz);
@@ -34,7 +34,7 @@ x = remove_rotations_translations(xyz);
 % choose algorithm
 % direction = 1: steepest descent
 % direction = 2: Newton
-direction = 3;
+direction = dire;
 
 f = LJpot(x);
 g = LJgrad(x);
@@ -97,6 +97,7 @@ while norm_g > tol && iter < iter_max
         s=p;
         x_old=x;
         x = x + a*p;
+        i=i+1;
         
     else 
         norm_p = norm(p);
@@ -106,7 +107,11 @@ while norm_g > tol && iter < iter_max
         % do backtracking line search along the direction p
         a = 1;
         beta=(LJgrad(x)'*LJgrad(x))/(LJgrad(x_old)'*LJgrad(x_old));
-        s=LJgrad(x)+beta*s;
+        s=-LJgrad(x)+beta*s;
+        norm_s = norm(s);
+        if norm_s > 1
+            s = s/norm_s;
+        end
         f_temp = LJpot(x + beta*s);
         cpg = c*s'*g;
         while f_temp > f + a*cpg % check Wolfe's condition 1

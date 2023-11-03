@@ -1,4 +1,4 @@
-function [iter,fvals,ngvals]=LJ_PRCG(xyz,dire)
+function [iter,fvals,ngvals]=LJ_line_search(xyz,dire)
 fsz = 20; % fontsize
 Na = 7; % the number of atoms
 rstar = 2^(1/6); % argument of the minimum of the Lennard-Jones pair potential V(r) = r^(-12) - r^(-6)
@@ -51,7 +51,6 @@ fail_flag = 0;
 i=0;
 
 
-
 while norm_g > tol && iter < iter_max 
     % choose search direction
     switch direction
@@ -68,65 +67,29 @@ while norm_g > tol && iter < iter_max
                 p = -g;
                 dir = "SD";
             end
-        case 3 % PRCG
-            p=-g;
-            dir = "PRCG";
         otherwise
             return
     end
-    if i==0
     % normalize the search direction if its length greater than 1
-        norm_p = norm(p);
-        if norm_p > 1
-            p = p/norm_p;
-        end
-        % do backtracking line search along the direction p
-        a = 1;
-        f_temp = LJpot(x + a*p);
-        cpg = c*p'*g;
-        while f_temp > f + a*cpg % check Wolfe's condition 1
-            a = a*rho;
-            if a < 1e-14
-                fprintf("line search failed\n");
-                iter = iter_max;
-                fail_flag = 1;
-                break;
-            end
-            f_temp = LJpot(x + a*p);        
-        end
-        s=p;
-        x_old=x;
-        x = x + a*p;
-        i=i+1;
-        
-    else 
-        norm_p = norm(p);
-        if norm_p > 1
-            p = p/norm_p;
-        end
-        % do backtracking line search along the direction p
-        a = 1;
-        beta=max(0,(LJgrad(x)'*(LJgrad(x)-LJgrad(x_old)))/(LJgrad(x_old)'*LJgrad(x_old)));
-        s=-LJgrad(x)+beta*s;
-        norm_s = norm(s);
-        if norm_s > 1
-            s = s/norm_s;
-        end
-        
-        f_temp = LJpot(x + beta*s);
-        cpg = c*s'*g;
-        while f_temp > f + a*cpg % check Wolfe's condition 1
-            a = a*rho;
-            if a < 1e-14
-                fprintf("line search failed\n");
-                iter = iter_max;
-                fail_flag = 1;
-                break;
-            end
-            f_temp = LJpot(x + a*s);        
-        end
-        x = x + a*s;
+    norm_p = norm(p);
+    if norm_p > 1
+        p = p/norm_p;
     end
+    % do backtracking line search along the direction p
+    a = 1;
+    f_temp = LJpot(x + a*p);
+    cpg = c*p'*g;
+    while f_temp > f + a*cpg % check Wolfe's condition 1
+        a = a*rho;
+        if a < 1e-14
+            fprintf("line search failed\n");
+            iter = iter_max;
+            fail_flag = 1;
+            break;
+        end
+        f_temp = LJpot(x + a*p);        
+    end
+    x = x + a*p;
     f = LJpot(x);
     g = LJgrad(x);
     norm_g = norm(g);
