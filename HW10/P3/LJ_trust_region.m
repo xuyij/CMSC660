@@ -1,9 +1,9 @@
-function [iter,fvals,ngvals]=LJ_trust_region_BFGS_dogleg(xyz)
+function [iter,fvals,ngvals]=LJ_trust_region(xyz)
 fsz = 20; % fontsize
 Na = 7; % the number of atoms
 rstar = 2^(1/6); % argument of the minimum of the Lennard-Jones pair potential V(r) = r^(-12) - r^(-6)
-tol = 1e-6; % stop iterations when || grad f|| < tol
-iter_max = 500; % the maximal number of iterations
+tol = 1e-9; % stop iterations when || grad f|| < tol
+iter_max = 200; % the maximal number of iterations
 draw_flag = 1; % if draw_flag = 1, draw configuration at every iteration
 
 %% parameters for trust region
@@ -15,7 +15,6 @@ subproblem_iter_max = 5; % the max # of iteration for quadratic subproblems
 tol_sub = 1e-1; % relative tolerance for the subproblem
 rho_good = 0.75;
 rho_bad = 0.25;
-i=0;
 %% Set up the initial configuration
 
 % Four lical minima of LJ7:
@@ -28,14 +27,6 @@ i=0;
 % Model 0 corresponds to a random initialization.
 % Models 1--4 set the system up close to the corresponding local minima
 % listed above.
-
-
-%model = init_config;
-%if model > 0
-    %Na = 7;
-%end
-%xyz = initial_configuration(model,Na,rstar);
-%drawconf(xyz,1);
 
 x = remove_rotations_translations(xyz);
 %% start minimization
@@ -52,52 +43,52 @@ ngvals(1) = norm_g;
 
 Delta = 1;
 I = eye(length(x));
-B=I;
-while norm_g > tol && iter < iter_max
-    % solve the constrained minimization problem
-    % reset B every 5 iterations
-    if mod(i,20)==0
-        B =I ;
-    end
-    
+
+while norm_g > tol && iter < iter_max     
+    % solve the constrained minimization problem 
+    B = LJhess(x);
+    flag_boundary = 0;
     % check if B is SPD
     eval_min = min(eig(B));
     j_sub = 0;
-    %pb = -B\g;
-
     if eval_min > 0 % B is SPD: B = R'*R, R'*R*p = -g 
-        pb = -B\g;
-        pb_norm = norm(pb);
-        if pb_norm > Delta % else: we are done with solbing the subproblem
+        p = -B\g;
+        p_norm = norm(p);
+        if p_norm > Delta % else: we are done with solbing the subproblem
             flag_boundary = 1;
         end
     else
         flag_boundary = 1;
     end
-
-   
-    
-    if norm(pb)<=Delta
-        p=pb;
-    else
-        pu = -g'*g/(g'*B*g)*g;
-        if norm(pu)>= Delta
-                % Use steepest descent step
-            p = Delta*pu/norm(pu);
-        else 
-            pc = pb - pu;
-            coeffs = [norm(pc)^2, 2*pc'*pu, norm(pu)^2-Delta^2];
-            tau = max(roots(coeffs));
-            p = pu + tau*pc;
+    if flag_boundary == 1 % solution lies on the boundary
+        lambda_min = max(-eval_min,0);
+        lambda = lambda_min + 1;
+        R = chol(B+lambda*I);
+        flag_subproblem_success = 0;
+        while j_sub < subproblem_iter_max
+            j_sub = j_sub + 1;
+            p = -R\(R'\g);
+            p_norm = norm(p);
+            dd = abs(p_norm - Delta);
+            if dd < tol_sub*Delta
+                flag_subproblem_success = 1;
+                break
+            end
+            q = R'\p;
+            q_norm = norm(q);
+            dlambda = ((p_norm/q_norm)^2)*(p_norm - Delta)/Delta;
+            lambda_new = lambda + dlambda;
+            if lambda_new > lambda_min
+                lambda = lambda_new;
+            else
+                lambda = 0.5*(lambda + lambda_min);
+            end
+            R = chol(B+lambda*I);
         end
-     end
-
-
-    % asses
-
-    %%%%%%%%%%%%%%%%%%%
-    
-    
+        if flag_subproblem_success == 0
+            p = cauchy_point(B,g,Delta);
+        end
+    end
     % assess the progress
     xnew = x + p;
     fnew = LJpot(xnew);
@@ -113,15 +104,13 @@ while norm_g > tol && iter < iter_max
         end
     end
     % accept or reject step
-    if rho > eta      
-        sk=xnew-x;
+    if rho > eta            
         x = xnew;
         f = fnew;
         g = gnew;
         norm_g = norm(g);
         fprintf('Accept: iter # %d: f = %.10f, |df| = %.4e, rho = %.4e, Delta = %.4e, j_sub = %d\n',iter,f,norm_g,rho,Delta,j_sub);
     else
-        sk=0;
         fprintf('Reject: iter # %d: f = %.10f, |df| = %.4e, rho = %.4e, Delta = %.4e, j_sub = %d\n',iter,f,norm_g,rho,Delta,j_sub);
     end
     if draw_flag == 1
@@ -129,14 +118,6 @@ while norm_g > tol && iter < iter_max
         xyz = reshape([0;0;0;x(1);0;0;x(2:3);0;x(4:end)],3,Na);
         drawconf(xyz,1);
     end
-    yk=LJgrad(x)-LJgrad(x-sk);
-
-    if sk==0
-        B=B;
-    else
-        B=B+ (yk*yk')/(yk'*sk)-(B*sk*sk'*B')/(sk'*B*sk);
-    end
-    i=i+1;
     iter = iter + 1;
     fvals(iter) = f;
     ngvals(iter) = norm_g;
