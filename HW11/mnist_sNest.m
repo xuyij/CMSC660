@@ -1,4 +1,4 @@
-function mnist_sg(bsz,kmax)
+function mnist_sNest(bsz,kmax)
 close all
 fsz = 20;
 mdata = load('mnist.mat');
@@ -88,7 +88,7 @@ d = nPCA;
 r_and_J = @(w)Res_and_Jac(Xtrain,label,w);
 w = ones(d^2+d+1,1);
 % params for SINewton
-%bsz = 100;
+%bsz = 50;
 %kmax = 1e3;
 tol = 1e-3;
 iter=1;
@@ -100,29 +100,46 @@ gamma=0.9;
 c=0.1;
 
 alpha=0.05;
+lr=0.05;
 
 
 %
 while iter<kmax 
-    Ig = randperm(n,bsz);
-    g=qlossgrad(Ig,Xtrain,label,w,lam);
-    if norm(g)>1
-        g=g/norm(g);
-    end
-    p=-g;
-    a=1.0;
-    ftemp=qloss(Ig,Xtrain,label,w+a*p,lam);
-    if ftemp>qloss(Ig,Xtrain,label,w,lam)
-        a=a*gamma;
-        if a < 1e-14
-            fprintf("line search failed\n");
-            iter = iter_max;
-            fail_flag = 1;
-            break;
+    if iter==1
+        Ig = randperm(n,bsz);
+        g=qlossgrad(Ig,Xtrain,label,w,lam);
+        if norm(g)>1
+            g=g/norm(g);
         end
-        %f_temp = qloss(Ig,Xtrain,label,w+a*p,lam);
+        p=-g;
+        a=1.0;
+        
+        wold=w;
+        w = w + lr*p;
+    else
+        mu=1-3/(5+iter);
+        t=(1+mu)*w-mu*wold;
+        g=qlossgrad(Ig,Xtrain,label,t,lam);
+        if norm(g)>1
+            g=g/norm(g);
+        end
+        p=-g;
+        a=1.0;
+        ftemp=qloss(Ig,Xtrain,label,t+a*p,lam);
+        if ftemp>qloss(Ig,Xtrain,label,t,lam)
+            a=a*gamma;
+            if a < 1e-14
+                fprintf("line search failed\n");
+                iter = iter_max;
+                fail_flag = 1;
+                break;
+            end
+            %f_temp = qloss(Ig,Xtrain,label,w+a*p,lam);
+        end
+        wold=w;
+        w = t + a*p;
     end
-    w = w + a*p;
+    
   
     
     %w=w-alpha*g;

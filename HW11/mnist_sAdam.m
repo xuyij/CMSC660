@@ -1,4 +1,4 @@
-function mnist_sg(bsz,kmax)
+function mnist_sAdam(bsz,kmax)
 close all
 fsz = 20;
 mdata = load('mnist.mat');
@@ -100,29 +100,29 @@ gamma=0.9;
 c=0.1;
 
 alpha=0.05;
+lr=0.05;
 
-
+m=0;
+v=0;
+Beta=0.9;
+beta=0.999;
+epsilon=10^-8;
+eta=0.001;
 %
 while iter<kmax 
     Ig = randperm(n,bsz);
     g=qlossgrad(Ig,Xtrain,label,w,lam);
-    if norm(g)>1
-        g=g/norm(g);
-    end
-    p=-g;
-    a=1.0;
-    ftemp=qloss(Ig,Xtrain,label,w+a*p,lam);
-    if ftemp>qloss(Ig,Xtrain,label,w,lam)
-        a=a*gamma;
-        if a < 1e-14
-            fprintf("line search failed\n");
-            iter = iter_max;
-            fail_flag = 1;
-            break;
-        end
-        %f_temp = qloss(Ig,Xtrain,label,w+a*p,lam);
-    end
-    w = w + a*p;
+    m=Beta*m+(1-Beta)*g;
+    v=beta*v+(1-beta)*(g.*g);
+
+    m_hat=m/(1-Beta^iter);
+    v_hat=v/(1-beta^iter);
+
+
+    %%%%%%%%%%%%%%%%%%%%%%
+
+    w=w-eta*m_hat./(sqrt(v_hat)+epsilon);
+    
   
     
     %w=w-alpha*g;
